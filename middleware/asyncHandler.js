@@ -7,7 +7,7 @@
  */
 const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch((err) => {
-        console.error(`Error in ${fn.name}:`, err.message);
+        console.error(`Error in ${fn}:`, err);
         next(err);  // Pass the error to the next middleware
     });
 };

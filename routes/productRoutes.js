@@ -1,20 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const {
-    getProductsByCoffeeShop,
-    createProduct,
-    updateProduct,
-    deleteProduct
-} = require('../controllers/productController');
+const {getProductsByCoffeeShop,createProduct,deleteProduct} = require('../controllers/productController');
+const validateRequest = require('../middleware/validateRequest');
+const { productSchema } = require('../validators/productValidators');
 
-router.route('/coffeeShop/:coffeeShopId')
-    .get(getProductsByCoffeeShop);
-
-router.route('/')
-    .post(createProduct);
-
-router.route('/:id')
-    .put(updateProduct)
-    .delete(deleteProduct);
+router.get('/coffeeShop/:coffeeShopId', getProductsByCoffeeShop);
+router.post('/', validateRequest(productSchema), createProduct);
+router.delete('/:id', deleteProduct);
 
 module.exports = router;

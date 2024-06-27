@@ -1,6 +1,7 @@
 const CoffeeShop = require('../models/CoffeeShop');
 const asyncHandler = require('../middleware/asyncHandler');
-
+const { coffeeShopSchema,idSchema } = require('../validators/coffeeShopValidators');
+const {z} = require("zod");
 /**
  * Get all coffee shops.
  * 
@@ -13,6 +14,7 @@ exports.getAllCoffeeShops = asyncHandler(async (req, res) => {
     res.json(coffeeShops);
 });
 
+
 /**
  * Get a coffee shop by ID.
  * 
@@ -21,11 +23,19 @@ exports.getAllCoffeeShops = asyncHandler(async (req, res) => {
  * @param {Response} res - Express response object.
  */
 exports.getCoffeeShopById = asyncHandler(async (req, res) => {
-    const coffeeShop = await CoffeeShop.findById(req.params.id);
-    if (!coffeeShop) {
-        return res.status(404).json({ message: 'Coffee shop not found' });
+    try {
+        const { id } = idSchema.parse(req.params);
+        const coffeeShop = await CoffeeShop.findById(id);
+        if (!coffeeShop) {
+            return res.status(404).json({ message: 'Coffee shop not found' });
+        }
+        res.json(coffeeShop);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
     }
-    res.json(coffeeShop);
 });
 
 /**
@@ -36,15 +46,21 @@ exports.getCoffeeShopById = asyncHandler(async (req, res) => {
  * @param {Response} res - Express response object.
  */
 exports.createCoffeeShop = asyncHandler(async (req, res) => {
-    const { name, description, location, image } = req.body;
-    const newCoffeeShop = new CoffeeShop({
-        name,
-        description,
-        location,
-        image
-    });
-    const savedCoffeeShop = await newCoffeeShop.save();
-    res.status(201).json(savedCoffeeShop);
+    try {
+        const validatedData = coffeeShopSchema.parse(req.body);
+        const newCoffeeShop = await CoffeeShop.findOneAndUpdate(
+            { name: validatedData.name },
+            validatedData,
+            { upsert: true, new: true }
+          );
+      
+        res.status(201).json(newCoffeeShop);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
+    }
 });
 
 /**
@@ -55,20 +71,24 @@ exports.createCoffeeShop = asyncHandler(async (req, res) => {
  * @param {Response} res - Express response object.
  */
 exports.updateCoffeeShop = asyncHandler(async (req, res) => {
-    const { name, description, location, image } = req.body;
-    const coffeeShop = await CoffeeShop.findById(req.params.id);
+    try {
+        const validatedData = coffeeShopSchema.partial().parse(req.body);
+        const { id } = idSchema.parse(req.params);
+        const coffeeShop = await CoffeeShop.findById(id);
 
-    if (!coffeeShop) {
-        return res.status(404).json({ message: 'Coffee shop not found' });
+        if (!coffeeShop) {
+            return res.status(404).json({ message: 'Coffee shop not found' });
+        }
+
+        Object.assign(coffeeShop, validatedData);
+        const updatedCoffeeShop = await coffeeShop.save();
+        res.json(updatedCoffeeShop);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
     }
-
-    coffeeShop.name = name || coffeeShop.name;
-    coffeeShop.description = description || coffeeShop.description;
-    coffeeShop.location = location || coffeeShop.location;
-    coffeeShop.image = image || coffeeShop.image;
-
-    const updatedCoffeeShop = await coffeeShop.save();
-    res.json(updatedCoffeeShop);
 });
 
 /**
@@ -79,12 +99,20 @@ exports.updateCoffeeShop = asyncHandler(async (req, res) => {
  * @param {Response} res - Express response object.
  */
 exports.deleteCoffeeShop = asyncHandler(async (req, res) => {
-    const coffeeShop = await CoffeeShop.findById(req.params.id);
+    try {
+        const { id } = idSchema.parse(req.params);
+        const coffeeShop = await CoffeeShop.findById(id);
 
-    if (!coffeeShop) {
-        return res.status(404).json({ message: 'Coffee shop not found' });
+        if (!coffeeShop) {
+            return res.status(404).json({ message: 'Coffee shop not found' });
+        }
+
+        await coffeeShop.deleteOne();
+        res.json({ message: 'Coffee shop removed' });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
     }
-
-    await coffeeShop.remove();
-    res.json({ message: 'Coffee shop removed' });
 });

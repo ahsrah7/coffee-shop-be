@@ -1,5 +1,10 @@
 const Product = require('../models/Product');
 const asyncHandler = require('../middleware/asyncHandler');
+const { productSchema, idSchema } = require('../validators/productValidators');
+const {z} = require("zod");
+
+
+
 
 /**
  * Get all products for a coffee shop.
@@ -9,8 +14,17 @@ const asyncHandler = require('../middleware/asyncHandler');
  * @param {Response} res - Express response object.
  */
 exports.getProductsByCoffeeShop = asyncHandler(async (req, res) => {
-    const products = await Product.find({ coffeeShop: req.params.coffeeShopId });
-    res.json(products);
+    try {
+        const {coffeeShopId} = idSchema.parse(req.params);
+   
+        const products = await Product.find({ coffeeShop: coffeeShopId }).populate("coffeeShop");
+        res.json(products);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
+    }
 });
 
 /**
@@ -21,40 +35,20 @@ exports.getProductsByCoffeeShop = asyncHandler(async (req, res) => {
  * @param {Response} res - Express response object.
  */
 exports.createProduct = asyncHandler(async (req, res) => {
-    const { name, price, category, coffeeShop } = req.body;
-    const newProduct = new Product({
-        name,
-        price,
-        category,
-        coffeeShop
-    });
-    const savedProduct = await newProduct.save();
-    res.status(201).json(savedProduct);
-});
-
-/**
- * Update a product by ID.
- * 
- * @route PUT /api/products/:id
- * @param {Request} req - Express request object.
- * @param {Response} res - Express response object.
- */
-exports.updateProduct = asyncHandler(async (req, res) => {
-    const { name, price, category, coffeeShop } = req.body;
-    const product = await Product.findById(req.params.id);
-
-    if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
+    try {
+        const validatedData = productSchema.parse(req.body);
+        const newProduct = new Product(validatedData);
+        const savedProduct = await newProduct.save();
+        res.status(201).json(savedProduct);
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
     }
-
-    product.name = name || product.name;
-    product.price = price || product.price;
-    product.category = category || product.category;
-    product.coffeeShop = coffeeShop || product.coffeeShop;
-
-    const updatedProduct = await product.save();
-    res.json(updatedProduct);
 });
+
+
 
 /**
  * Delete a product by ID.
@@ -64,12 +58,20 @@ exports.updateProduct = asyncHandler(async (req, res) => {
  * @param {Response} res - Express response object.
  */
 exports.deleteProduct = asyncHandler(async (req, res) => {
-    const product = await Product.findById(req.params.id);
+    try {
+        const { id } = idSchema.parse(req.params);
+        const product = await Product.findById(id);
 
-    if (!product) {
-        return res.status(404).json({ message: 'Product not found' });
+        if (!product) {
+            return res.status(404).json({ message: 'Product not found' });
+        }
+
+        await product.deleteOne();
+        res.json({ message: 'Product removed' });
+    } catch (error) {
+        if (error instanceof z.ZodError) {
+            return res.status(400).json({ message: error.errors.map(e => e.message).join(', ') });
+        }
+        throw error;
     }
-
-    await product.remove();
-    res.json({ message: 'Product removed' });
 });
